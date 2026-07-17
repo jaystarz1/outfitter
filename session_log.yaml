@@ -3,17 +3,17 @@ meta:
   purpose: "Outfitter — multi-store AI outfit stylist (Cloudflare Workers), Tip Top demo"
 
 current_state:
-  active_task: "MVP build: catalogue sync + stylist chat + UI"
-  status: "in-progress"
-  next_action: "Deploy, seed Tip Top, run e2e verification"
-  summary: "Foundry-registered (projects/outfitter.yaml, state building). Worker code written: Shopify sync, Claude tool-loop stylist, atelier chat UI. D1+R2 created."
+  active_task: "MVP deployed and verified except chat e2e"
+  status: "blocked"
+  next_action: "Jay: create Anthropic API key + `npx wrangler secret put ANTHROPIC_API_KEY` (jay_queue q-outfitter-create-anthropic-api-key-20260716). Then run chat e2e + hallucination + persistence verification."
+  summary: "Live at https://outfitter.jay-668.workers.dev/s/tiptop. Tip Top synced (861 products, 99.9% categorized, 97.9% coloured), Frank And Oak second-store zero-code proof done, 25/25 link integrity, 9/9 tests. Chat dark until API key (RED, Jay-only)."
 
 pending_tasks:
-  - task: "Deploy + verify (sync counts, link integrity, e2e chat, persistence, second store)"
+  - task: "Chat e2e verification once ANTHROPIC_API_KEY set (scripted convo, hallucination check, persistence)"
     priority: high
-  - task: "Operator/POC decision + board.yaml entry"
+  - task: "Operator/POC decision + remaining Foundry acceptance (operator/report/poc/fleet/engineering)"
     priority: medium
 
 session_history:
   - date: "2026-07-16"
-    summary: "Project created via Foundry; full MVP code written (sync/stylist/UI); D1+R2 provisioned"
+    summary: "Foundry-registered, built, deployed: sync engine + stylist tool-loop + atelier UI; Tip Top + Frank And Oak synced; links/tests verified; blocked on Anthropic key (RED)"
