@@ -1,0 +1,27 @@
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "outfitter",
+  "main": "src/index.js",
+  "compatibility_date": "2026-07-01",
+  "observability": { "enabled": true },
+  "d1_databases": [
+    {
+      "binding": "DB",
+      "database_name": "outfitter-db",
+      "database_id": "fe2a351c-a732-4aec-9980-5019894eeb2f"
+    }
+  ],
+  "r2_buckets": [
+    {
+      "binding": "UPLOADS",
+      "bucket_name": "outfitter-uploads"
+    }
+  ],
+  "triggers": {
+    "crons": ["15 7 * * *"]
+  },
+  "vars": {
+    "RENDER_LANE_ENABLED": "false",
+    "CLAUDE_MODEL": "claude-sonnet-5"
+  }
+}

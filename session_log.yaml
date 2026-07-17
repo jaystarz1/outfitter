@@ -1,0 +1,19 @@
+meta:
+  last_updated: "2026-07-16"
+  purpose: "Outfitter — multi-store AI outfit stylist (Cloudflare Workers), Tip Top demo"
+
+current_state:
+  active_task: "MVP build: catalogue sync + stylist chat + UI"
+  status: "in-progress"
+  next_action: "Deploy, seed Tip Top, run e2e verification"
+  summary: "Foundry-registered (projects/outfitter.yaml, state building). Worker code written: Shopify sync, Claude tool-loop stylist, atelier chat UI. D1+R2 created."
+
+pending_tasks:
+  - task: "Deploy + verify (sync counts, link integrity, e2e chat, persistence, second store)"
+    priority: high
+  - task: "Operator/POC decision + board.yaml entry"
+    priority: medium
+
+session_history:
+  - date: "2026-07-16"
+    summary: "Project created via Foundry; full MVP code written (sync/stylist/UI); D1+R2 provisioned"
