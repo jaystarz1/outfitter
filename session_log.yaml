@@ -1,12 +1,13 @@
 meta:
   last_updated: "2026-07-17"
+  # 2026-07-17 PM: seven-beat flow shipped (see session_history)
   purpose: "Outfitter — multi-store outfit stylist (Cloudflare Workers), Tip Top demo"
 
 current_state:
-  active_task: "Button-driven stepper MVP (no model in the core flow)"
+  active_task: "Seven-beat guided flow, live on workers.dev"
   status: "in-progress"
-  next_action: "Deploy stepper to workers.dev, verify live, then remaining Foundry acceptance (operator/report/poc/fleet/engineering)"
-  summary: "Jay killed the chatbot: core flow is now item → colour → occasion (+ on-sale toggle) → palette + full outfit, deterministic via palette matrix (src/palette.js) + ranked SQL (/api/outfit). Zero model calls, so the Anthropic-key RED blocker is gone; chat/vision is an optional BYOK lane. 15/15 tests."
+  next_action: "Jay walkthrough on phone; then remaining Foundry acceptance (operator/report/poc/fleet/engineering)"
+  summary: "Flow: item → colour family → shade (light/mid/dark) → occasion → pickable palette (choose up to 2, role-tagged swatches) → carousel rows (Shirts / Jackets / Belts & Shoes / Ties, Socks & Pocket Squares) with sale-cheapest refinement → tap-to-select fitting list (style numbers, per-size online stock, copy/share; ?mode=rep adds POS framing). Zero model calls. 17/17 tests. Card notes state the store's own colour tag, never our plan colour."
 
 pending_tasks:
   - task: "Deploy + live verify stepper on workers.dev (both stores)"
@@ -18,6 +19,6 @@ pending_tasks:
 
 session_history:
   - date: "2026-07-17"
-    summary: "Pivot chat → button stepper: palette matrix + /api/outfit (colour-family matching, boys-line exclusion, 3-colour shirt spread), stepper UI, sale toggle, README rewrite; 15/15 tests, verified in phone-size browser"
+    summary: "AM: chat → button stepper pivot. PM: seven-beat flow (family/shade steps, pickable 2-colour palette, carousel rows, results-level sale refinement, fitting list w/ variant SKUs + sizes), grammar fix, deployed + resynced both stores"
   - date: "2026-07-16"
     summary: "Foundry-registered, built, deployed: sync engine + stylist tool-loop + atelier UI; Tip Top + Frank And Oak synced; links/tests verified; blocked on Anthropic key (RED)"
