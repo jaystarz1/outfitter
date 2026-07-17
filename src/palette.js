@@ -309,9 +309,11 @@ export function buildPlan(item, shade, occasion, picks = []) {
     );
     const picked = chosen.filter((p) => capable.has(p));
     if (picked.length) {
-      list = [...picked, ...base.filter((c) => !picked.includes(c))];
+      // A pick CONSTRAINS the role to the chosen colours — it doesn't just
+      // reorder them. The customer said burgundy; don't show mustard.
+      list = [...picked];
       // White always rides along as the safe shirt option.
-      if (roleKind === 'shirt' && !list.includes('white')) list.splice(1, 0, 'white');
+      if (roleKind === 'shirt' && !list.includes('white')) list.push('white');
     }
     return list;
   };
