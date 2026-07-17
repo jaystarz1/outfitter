@@ -1,19 +1,23 @@
 meta:
-  last_updated: "2026-07-16"
-  purpose: "Outfitter — multi-store AI outfit stylist (Cloudflare Workers), Tip Top demo"
+  last_updated: "2026-07-17"
+  purpose: "Outfitter — multi-store outfit stylist (Cloudflare Workers), Tip Top demo"
 
 current_state:
-  active_task: "MVP deployed and verified except chat e2e"
-  status: "blocked"
-  next_action: "Jay: create Anthropic API key + `npx wrangler secret put ANTHROPIC_API_KEY` (jay_queue q-outfitter-create-anthropic-api-key-20260716). Then run chat e2e + hallucination + persistence verification."
-  summary: "Live at https://outfitter.jay-668.workers.dev/s/tiptop. Tip Top synced (861 products, 99.9% categorized, 97.9% coloured), Frank And Oak second-store zero-code proof done, 25/25 link integrity, 9/9 tests. Chat dark until API key (RED, Jay-only)."
+  active_task: "Button-driven stepper MVP (no model in the core flow)"
+  status: "in-progress"
+  next_action: "Deploy stepper to workers.dev, verify live, then remaining Foundry acceptance (operator/report/poc/fleet/engineering)"
+  summary: "Jay killed the chatbot: core flow is now item → colour → occasion (+ on-sale toggle) → palette + full outfit, deterministic via palette matrix (src/palette.js) + ranked SQL (/api/outfit). Zero model calls, so the Anthropic-key RED blocker is gone; chat/vision is an optional BYOK lane. 15/15 tests."
 
 pending_tasks:
-  - task: "Chat e2e verification once ANTHROPIC_API_KEY set (scripted convo, hallucination check, persistence)"
+  - task: "Deploy + live verify stepper on workers.dev (both stores)"
     priority: high
-  - task: "Operator/POC decision + remaining Foundry acceptance (operator/report/poc/fleet/engineering)"
+  - task: "Operator/POC decision + remaining Foundry acceptance"
     priority: medium
+  - task: "Phase 2: photo ID (one Haiku vision call, BYOK) + 'match from my wardrobe'; rep-mode copy"
+    priority: low
 
 session_history:
+  - date: "2026-07-17"
+    summary: "Pivot chat → button stepper: palette matrix + /api/outfit (colour-family matching, boys-line exclusion, 3-colour shirt spread), stepper UI, sale toggle, README rewrite; 15/15 tests, verified in phone-size browser"
   - date: "2026-07-16"
     summary: "Foundry-registered, built, deployed: sync engine + stylist tool-loop + atelier UI; Tip Top + Frank And Oak synced; links/tests verified; blocked on Anthropic key (RED)"

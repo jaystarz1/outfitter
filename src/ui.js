@@ -1,5 +1,8 @@
-// Single-page chat UI, served per store. Design system: tailor's atelier —
-// hang-tag product cards, fabric-swatch palette strip, stitch-rule dividers.
+// Single-page guided outfit builder, served per store. Design system: tailor's
+// atelier — hang-tag product cards, fabric-swatch palette strip, stitch rules.
+// Flow is button-driven (item -> colour -> occasion -> outfit); no free text.
+
+import { ANCHOR_ITEMS, ANCHOR_COLOURS, OCCASIONS, COLOUR_HEX } from './palette.js';
 
 export function renderPage(store) {
   const branding = JSON.parse(store.branding || '{}');
@@ -53,7 +56,8 @@ export function renderPage(store) {
   header h1 em { font-style: normal; color: var(--accent); }
   main {
     flex: 1; overflow-y: auto; scroll-behavior: smooth;
-    padding: 20px 16px 8px; max-width: 720px; width: 100%; margin: 0 auto;
+    padding: 20px 16px calc(24px + env(safe-area-inset-bottom));
+    max-width: 720px; width: 100%; margin: 0 auto;
   }
   .msg { margin: 0 0 18px; animation: rise .35s ease both; }
   @keyframes rise { from { opacity: 0; transform: translateY(6px); } }
@@ -61,18 +65,16 @@ export function renderPage(store) {
   .msg.stylist {
     padding-left: 14px;
     border-left: 2px dashed var(--stitch);
-    max-width: 92%;
+    max-width: 96%;
     white-space: pre-wrap;
   }
   .msg.you {
     margin-left: auto; max-width: 82%;
     background: var(--ink); color: var(--paper);
     padding: 10px 14px; border-radius: 14px 14px 3px 14px;
-    white-space: pre-wrap;
+    white-space: pre-wrap; width: fit-content;
   }
-  .msg.you img, .msg .snap {
-    display: block; max-width: 100%; border-radius: 10px; margin-top: 8px;
-  }
+  .msg.you img { display: block; max-width: 180px; border-radius: 10px; margin-top: 8px; }
   .who {
     font: 500 10px/1 "IBM Plex Mono", monospace;
     letter-spacing: .18em; text-transform: uppercase;
@@ -143,44 +145,36 @@ export function renderPage(store) {
   .stitches i:nth-child(2) { animation-delay: .15s; }
   .stitches i:nth-child(3) { animation-delay: .3s; }
   @keyframes stitch { 0%,100% { opacity: .25; } 50% { opacity: 1; } }
-  /* Quick chips */
-  .chips { display: flex; flex-wrap: wrap; gap: 8px; margin: 6px 0 14px; }
+  /* Choice chips */
+  .chips { display: flex; flex-wrap: wrap; gap: 8px; margin: 8px 0 4px; }
   .chips button {
-    font: 500 12.5px/1 "Public Sans", sans-serif;
+    font: 500 13px/1 "Public Sans", sans-serif;
     background: var(--tag); color: var(--ink);
     border: 1px solid var(--stitch); border-radius: 999px;
-    padding: 9px 14px; cursor: pointer;
+    padding: 10px 15px; cursor: pointer;
+    display: inline-flex; align-items: center; gap: 8px;
   }
   .chips button:hover { border-color: var(--accent); color: var(--accent); }
-  /* Composer */
-  .composer {
-    border-top: 1px solid var(--stitch); background: var(--paper);
-    padding: 10px 12px calc(10px + env(safe-area-inset-bottom));
-    position: sticky; bottom: 0;
+  .chips button .dot {
+    width: 14px; height: 14px; border-radius: 50%;
+    border: 1px solid rgba(32,36,44,.18); display: inline-block;
   }
-  .composer .row {
-    display: flex; gap: 8px; align-items: flex-end;
-    max-width: 720px; margin: 0 auto;
+  .chips button.toggle[aria-pressed="true"] {
+    background: var(--sale); border-color: var(--sale); color: #fff;
   }
-  .composer textarea {
-    flex: 1; resize: none; max-height: 110px;
-    font: 400 15px/1.45 "Public Sans", sans-serif; color: var(--ink);
-    background: var(--tag); border: 1px solid var(--stitch); border-radius: 12px;
-    padding: 11px 13px; outline: none;
+  .chips button.ghost { background: transparent; border-style: dashed; color: var(--ink-soft); }
+  .camrow { margin-top: 10px; }
+  .camrow button {
+    font: 500 12px/1 "IBM Plex Mono", monospace; letter-spacing: .06em;
+    background: #EBEAE6; border: 1px solid var(--stitch); border-radius: 10px;
+    padding: 9px 13px; cursor: pointer; color: var(--ink-soft);
+    display: inline-flex; align-items: center; gap: 8px;
   }
-  .composer textarea:focus { border-color: var(--accent); }
-  .iconbtn, .sendbtn {
-    flex: 0 0 auto; height: 44px; border-radius: 12px; border: 1px solid var(--stitch);
-    background: var(--tag); cursor: pointer; display: grid; place-items: center;
+  .whyline {
+    font: 400 13.5px/1.5 "Public Sans", sans-serif; color: var(--ink-soft);
+    border-top: 1px dashed var(--stitch); margin-top: 4px; padding-top: 10px;
   }
-  .iconbtn { width: 44px; font-size: 19px; }
-  .iconbtn.armed { border-color: var(--accent); box-shadow: 0 0 0 2px color-mix(in srgb, var(--accent) 25%, transparent); }
-  .sendbtn {
-    width: 66px; background: var(--accent); border-color: var(--accent);
-    color: #fff; font: 600 13px/1 "Public Sans", sans-serif;
-  }
-  .sendbtn:disabled { opacity: .45; cursor: default; }
-  button:focus-visible, textarea:focus-visible, a:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+  button:focus-visible, a:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
   .err { color: var(--sale); font-size: 13px; }
 </style>
 </head>
@@ -190,151 +184,204 @@ export function renderPage(store) {
   <h1><em>${esc(storeName)}</em></h1>
 </header>
 <main id="thread"></main>
-<div class="composer">
-  <div class="row">
-    <button class="iconbtn" id="photoBtn" title="Add a photo of your item" aria-label="Add a photo">&#128247;</button>
-    <input type="file" id="photoInput" accept="image/jpeg,image/png,image/webp" hidden>
-    <textarea id="input" rows="1" placeholder="Tell me about the occasion…" aria-label="Message"></textarea>
-    <button class="sendbtn" id="send">Send</button>
-  </div>
-</div>
+<input type="file" id="photoInput" accept="image/jpeg,image/png,image/webp" hidden>
 <script>
 const STORE = ${JSON.stringify(store.slug)};
-const KEY = 'outfitter-session-' + STORE;
-let sessionId = localStorage.getItem(KEY) || null;
-let pendingImage = null, pendingType = null, busy = false;
+const ITEMS = ${JSON.stringify(ANCHOR_ITEMS)};
+const COLOURS = ${JSON.stringify(ANCHOR_COLOURS)};
+const OCCASIONS = ${JSON.stringify(OCCASIONS)};
+const HEX = ${JSON.stringify(COLOUR_HEX)};
 
 const thread = document.getElementById('thread');
-const input = document.getElementById('input');
-const send = document.getElementById('send');
-const photoBtn = document.getElementById('photoBtn');
 const photoInput = document.getElementById('photoInput');
+const state = { item: null, colour: null, occasion: null, sale: false, photo: null };
+let busy = false;
 
 function el(html) { const d = document.createElement('div'); d.innerHTML = html; return d.firstElementChild; }
 function escT(s) { const d = document.createElement('span'); d.textContent = s; return d.innerHTML; }
 function scrollEnd() { thread.scrollTop = thread.scrollHeight; }
+function cap(s) { return s.replace(/\\b\\w/g, (ch) => ch.toUpperCase()); }
 
 function addUser(text, imgUrl) {
   const m = el('<div class="msg you"></div>');
   if (text) m.appendChild(el('<div>' + escT(text) + '</div>'));
-  if (imgUrl) m.appendChild(el('<img class="snap" src="' + imgUrl + '" alt="Your photo">'));
+  if (imgUrl) m.appendChild(el('<img src="' + imgUrl + '" alt="Your photo">'));
   thread.appendChild(m); scrollEnd();
 }
-function addStylist(text, rec) {
+function stylistMsg(text) {
   const wrap = el('<div class="msg stylist"><div class="who">Stylist</div></div>');
-  if (rec && rec.palette && rec.palette.length) {
+  if (text) wrap.appendChild(el('<div>' + escT(text) + '</div>'));
+  thread.appendChild(wrap); scrollEnd();
+  return wrap;
+}
+function chipRow(wrap) {
+  const chips = el('<div class="chips"></div>');
+  wrap.appendChild(chips); scrollEnd();
+  return chips;
+}
+function disableChips(chips) {
+  chips.querySelectorAll('button').forEach((b) => { b.disabled = true; b.style.opacity = .45; b.style.cursor = 'default'; });
+}
+function addTyping() {
+  const t = el('<div class="msg stylist"><div class="who">Stylist</div><span class="stitches"><i></i><i></i><i></i></span></div>');
+  thread.appendChild(t); scrollEnd(); return t;
+}
+
+// Step 1: what are we building around?
+function stepItem() {
+  const wrap = stylistMsg("Let's build a full look around one piece. What are you starting with?");
+  const chips = chipRow(wrap);
+  for (const it of ITEMS) {
+    const b = el('<button>' + escT(it.label) + '</button>');
+    b.onclick = () => {
+      disableChips(chips);
+      state.item = it.key;
+      addUser(it.label, state.photo);
+      stepColour(it.label);
+    };
+    chips.appendChild(b);
+  }
+  const cam = el('<div class="camrow"><button type="button">' +
+    '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" aria-hidden="true">' +
+    '<path d="M9 4.5h6l1.2 2H20a1.5 1.5 0 0 1 1.5 1.5v10A1.5 1.5 0 0 1 20 19.5H4A1.5 1.5 0 0 1 2.5 18V8A1.5 1.5 0 0 1 4 6.5h3.8L9 4.5z" fill="currentColor"/>' +
+    '<circle cx="12" cy="13" r="4.2" fill="#EBEAE6"/><circle cx="12" cy="13" r="2.6" fill="currentColor"/></svg>' +
+    'Snap it (optional)</button></div>');
+  cam.querySelector('button').onclick = () => photoInput.click();
+  wrap.appendChild(cam); scrollEnd();
+}
+
+// Step 2: colour of the anchor piece.
+function stepColour(itemLabel) {
+  const wrap = stylistMsg('What colour is your ' + itemLabel.toLowerCase() + '?');
+  const chips = chipRow(wrap);
+  for (const c of COLOURS) {
+    const b = el('<button><span class="dot" style="background:' + (HEX[c] || '#999') + '"></span>' + escT(cap(c)) + '</button>');
+    b.onclick = () => {
+      disableChips(chips);
+      state.colour = c;
+      addUser(cap(c));
+      stepOccasion();
+    };
+    chips.appendChild(b);
+  }
+}
+
+// Step 3: occasion + sale toggle, then build.
+function stepOccasion() {
+  const wrap = stylistMsg('And where is this look headed?');
+  const chips = chipRow(wrap);
+  const sale = el('<button class="toggle" aria-pressed="false">On sale only</button>');
+  sale.onclick = () => {
+    state.sale = !state.sale;
+    sale.setAttribute('aria-pressed', String(state.sale));
+  };
+  for (const o of OCCASIONS) {
+    const b = el('<button>' + escT(o.label) + '</button>');
+    b.onclick = () => {
+      disableChips(chips);
+      state.occasion = o.key;
+      addUser(o.label + (state.sale ? ' — on sale only' : ''));
+      buildOutfit();
+    };
+    chips.appendChild(b);
+  }
+  chips.appendChild(sale);
+}
+
+// Fetch and render the full outfit.
+async function buildOutfit() {
+  if (busy) return;
+  busy = true;
+  const typing = addTyping();
+  let data;
+  try {
+    const r = await fetch('/api/outfit', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ store: STORE, item: state.item, colour: state.colour, occasion: state.occasion, sale_only: state.sale }),
+    });
+    data = await r.json();
+  } catch {
+    typing.remove(); busy = false;
+    stylistMsg('I lost the connection for a moment — tap a colour again to retry.');
+    return pivotRow(stylistMsg(''));
+  }
+  typing.remove(); busy = false;
+  if (data.error) { stylistMsg(data.error); return; }
+
+  const wrap = el('<div class="msg stylist"><div class="who">Stylist</div></div>');
+  if (data.palette && data.palette.length) {
     const sw = el('<div class="swatches" role="list" aria-label="Colour palette"></div>');
-    for (const s of rec.palette) {
+    for (const s of data.palette) {
       sw.appendChild(el('<div class="swatch" role="listitem"><div class="chip" style="background:' + escT(s.hex || '#ccc') +
         '"></div><div class="sname">' + escT(s.name || '') + '</div>' +
         (s.use ? '<div class="suse">' + escT(s.use) + '</div>' : '') + '</div>'));
     }
     wrap.appendChild(sw);
   }
-  if (text) wrap.appendChild(el('<div>' + escT(text) + '</div>'));
-  if (rec && rec.cards && rec.cards.length) {
-    const groups = {};
-    for (const c of rec.cards) (groups[c.role] = groups[c.role] || []).push(c);
-    for (const role of Object.keys(groups)) {
-      wrap.appendChild(el('<div class="rolehead">' + escT(role) + '</div>'));
-      const grid = el('<div class="cards"></div>');
-      for (const c of groups[role]) {
-        const price = c.price != null ? '$' + Number(c.price).toFixed(2) : '';
-        const was = c.compare_at_price ? '<span class="was">$' + Number(c.compare_at_price).toFixed(2) + '</span>' : '';
-        grid.appendChild(el('<a class="tagcard" href="' + escT(c.url) + '" target="_blank" rel="noopener">' +
-          (c.compare_at_price ? '<span class="salebadge">Sale</span>' : '') +
-          '<img loading="lazy" src="' + escT(c.image || '') + '" alt="' + escT(c.title) + '">' +
-          '<span class="ticket"><span class="t-title">' + escT(c.title) + '</span>' +
-          (c.note ? '<span class="t-note">' + escT(c.note) + '</span>' : '') +
-          '<span class="t-price">' + price + ' ' + was + '</span></span></a>'));
-      }
-      wrap.appendChild(grid);
+  let shown = 0;
+  for (const g of data.groups || []) {
+    if (!g.cards.length) continue;
+    shown += g.cards.length;
+    wrap.appendChild(el('<div class="rolehead">' + escT(g.role) + '</div>'));
+    const grid = el('<div class="cards"></div>');
+    for (const c of g.cards) {
+      const price = c.price != null ? '$' + Number(c.price).toFixed(2) : '';
+      const was = c.compare_at_price ? '<span class="was">$' + Number(c.compare_at_price).toFixed(2) + '</span>' : '';
+      grid.appendChild(el('<a class="tagcard" href="' + escT(c.url) + '" target="_blank" rel="noopener">' +
+        (c.compare_at_price ? '<span class="salebadge">Sale</span>' : '') +
+        '<img loading="lazy" src="' + escT(c.image || '') + '" alt="' + escT(c.title) + '">' +
+        '<span class="ticket"><span class="t-title">' + escT(c.title) + '</span>' +
+        (c.note ? '<span class="t-note">' + escT(c.note) + '</span>' : '') +
+        '<span class="t-price">' + price + ' ' + was + '</span></span></a>'));
     }
+    wrap.appendChild(grid);
   }
-  thread.appendChild(wrap); scrollEnd();
-}
-function addTyping() {
-  const t = el('<div class="msg stylist" id="typing"><div class="who">Stylist</div><span class="stitches"><i></i><i></i><i></i></span></div>');
-  thread.appendChild(t); scrollEnd(); return t;
+  if (!shown) {
+    wrap.appendChild(el('<div>' + escT(state.sale
+      ? 'Nothing on sale fits that combination right now — try it without the sale filter.'
+      : 'The catalogue is thin around that combination right now — try a different colour direction.') + '</div>'));
+  } else if (data.why) {
+    wrap.appendChild(el('<div class="whyline">' + escT(data.why) + '</div>'));
+  }
+  thread.appendChild(wrap);
+  pivotRow(wrap);
+  scrollEnd();
 }
 
-function welcome() {
-  addStylist("Hello — I'm the " + ${JSON.stringify(storeName)} + " outfit stylist. I'll help you put a full look together around one piece.\\n\\nWhat sort of look are you going for?");
-  const chips = el('<div class="chips"></div>');
-  for (const c of ['Classic and polished', 'Fashion-forward', 'Business casual', 'Something for a social night']) {
-    const b = el('<button>' + escT(c) + '</button>');
-    b.onclick = () => { input.value = c; doSend(); };
+// After a result: pivot to another colour (full re-present) or start over.
+function pivotRow(wrap) {
+  const chips = chipRow(wrap);
+  for (const c of COLOURS) {
+    if (c === state.colour) continue;
+    const b = el('<button><span class="dot" style="background:' + (HEX[c] || '#999') + '"></span>' + escT(cap(c)) + '</button>');
+    b.onclick = () => {
+      state.colour = c;
+      addUser('Make it ' + cap(c) + ' instead');
+      buildOutfit();
+    };
     chips.appendChild(b);
   }
-  thread.appendChild(chips); scrollEnd();
+  const again = el('<button class="ghost">Start over</button>');
+  again.onclick = () => {
+    state.item = state.colour = state.occasion = null;
+    state.sale = false; state.photo = null;
+    stepItem();
+  };
+  chips.appendChild(again);
 }
 
-async function loadHistory() {
-  if (!sessionId) return welcome();
-  try {
-    const r = await fetch('/api/history?session=' + sessionId + '&store=' + STORE);
-    const { messages } = await r.json();
-    if (!messages.length) return welcome();
-    for (const m of messages) {
-      if (m.role === 'user') {
-        const text = m.content.filter(b => b.type === 'text').map(b => b.text).join(' ');
-        const img = m.content.find(b => b.type === 'image_ref');
-        addUser(text, img ? img.url : null);
-      } else {
-        const text = m.content.filter(b => b.type === 'text').map(b => b.text).join('\\n');
-        addStylist(text, m.recommendations);
-      }
-    }
-  } catch { welcome(); }
-}
-
-async function doSend() {
-  const text = input.value.trim();
-  if (busy || (!text && !pendingImage)) return;
-  busy = true; send.disabled = true;
-  addUser(text || 'Here is a photo of the item.', pendingImage ? 'data:' + pendingType + ';base64,' + pendingImage : null);
-  input.value = ''; input.style.height = 'auto';
-  const body = { store: STORE, session_id: sessionId, text, image: pendingImage, image_type: pendingType };
-  pendingImage = pendingType = null; photoBtn.classList.remove('armed');
-  const typing = addTyping();
-  try {
-    const r = await fetch('/api/chat', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(body) });
-    const data = await r.json();
-    typing.remove();
-    if (data.session_id) { sessionId = data.session_id; localStorage.setItem(KEY, sessionId); }
-    if (data.error) addStylist(data.error);
-    else addStylist(data.text, { cards: data.cards, palette: data.palette });
-  } catch {
-    typing.remove();
-    addStylist('I lost the connection for a moment — please send that again.');
-  }
-  busy = false; send.disabled = false; input.focus();
-}
-
-photoBtn.onclick = () => photoInput.click();
 photoInput.onchange = () => {
   const f = photoInput.files[0];
   if (!f) return;
-  if (f.size > 5 * 1024 * 1024) { addStylist('That photo is over 5 MB — try a smaller one.'); return; }
+  if (f.size > 5 * 1024 * 1024) { stylistMsg('That photo is over 5 MB — try a smaller one.'); return; }
   const reader = new FileReader();
-  reader.onload = () => {
-    pendingImage = reader.result.split(',')[1];
-    pendingType = f.type;
-    photoBtn.classList.add('armed');
-    if (!input.value) input.placeholder = 'Photo attached — add a note or hit Send';
-  };
+  reader.onload = () => { state.photo = reader.result; stylistMsg('Got it — pick the item and colour that match your photo.'); };
   reader.readAsDataURL(f);
   photoInput.value = '';
 };
-send.onclick = doSend;
-input.addEventListener('keydown', (e) => {
-  if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); doSend(); }
-});
-input.addEventListener('input', () => {
-  input.style.height = 'auto';
-  input.style.height = Math.min(input.scrollHeight, 110) + 'px';
-});
-loadHistory();
+
+stepItem();
 </script>
 </body>
 </html>`;

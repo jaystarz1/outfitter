@@ -1,6 +1,7 @@
 import { Hono } from 'hono';
 import { syncStore, syncAllStores } from './sync.js';
-import { runStylist } from './stylist.js';
+import { runStylist, resolveCards } from './stylist.js';
+import { buildPlan, COLOUR_FAMILY } from './palette.js';
 import { renderPage } from './ui.js';
 
 const app = new Hono();
@@ -132,7 +133,11 @@ app.post('/api/chat', async (c) => {
 
   let result;
   try {
-    result = await runStylist(env, store, session, history, userContent);
+    if (env.DEV_BRAIN === 'queue') {
+      result = await runDevBrain(env, store, session, history, text, imageKey);
+    } else {
+      result = await runStylist(env, store, session, history, userContent);
+    }
   } catch (err) {
     console.error('stylist error', err);
     return c.json({ error: 'The stylist hit a snag — please try again.', session_id: sessionId }, 502);
@@ -160,6 +165,137 @@ app.post('/api/chat', async (c) => {
     cards: result.cards,
     palette: result.palette,
   });
+});
+
+// ---------- Outfit builder (deterministic: palette matrix + SQL, no model) ----------
+app.post('/api/outfit', async (c) => {
+  const env = c.env;
+  const ip = c.req.header('cf-connecting-ip') || 'unknown';
+  if (!(await rateLimit(env, ip))) {
+    return c.json({ error: 'Slow down a little — try again in a few minutes.' }, 429);
+  }
+  let body;
+  try {
+    body = await c.req.json();
+  } catch {
+    return c.json({ error: 'bad request' }, 400);
+  }
+  const { store: slug, item, colour, occasion, sale_only } = body;
+  const store = await getStore(env, slug);
+  if (!store) return c.json({ error: 'unknown store' }, 404);
+  const plan = buildPlan(item, colour, occasion);
+  if (!plan) return c.json({ error: 'unknown item, colour, or occasion' }, 400);
+
+  const groups = [];
+  for (const role of plan.roles) {
+    const picks = await pickForRole(env, store, role, !!sale_only);
+    if (picks.length) groups.push({ role: role.label, cards: picks });
+  }
+  return c.json({ palette: plan.swatches, why: plan.why, groups });
+});
+
+// Rank a role's category: colour fit first (earlier in the plan's list = better,
+// exact beats partial), sale as tiebreaker, then spread picks across prices.
+async function pickForRole(env, store, role, saleOnly) {
+  let sql =
+    `SELECT id, handle, title, product_type, colours, fit, price_min, compare_at_price, on_sale, image_url
+     FROM products WHERE store_slug = ? AND in_stock = 1 AND category = ?`;
+  if (saleOnly) sql += ' AND on_sale = 1';
+  const { results } = await env.DB.prepare(sql).bind(store.slug, role.category).all();
+  const scored = [];
+  for (const r of results) {
+    const colours = JSON.parse(r.colours || '[]');
+    let best = -1;      // index into role.colours of the best-matched want
+    let quality = 9;    // 0 exact, 1 colour-family, 2 substring
+    for (let i = 0; i < role.colours.length; i++) {
+      const want = role.colours[i];
+      const family = COLOUR_FAMILY[want] || [];
+      for (const have of colours) {
+        let q;
+        if (have === want) q = 0;
+        else if (family.includes(have)) q = 1;
+        else if (have.includes(want) || want.includes(have)) q = 2;
+        else continue;
+        if (best === -1 || i < best || (i === best && q < quality)) { best = i; quality = q; }
+      }
+    }
+    // Belts/shoes/squares often carry no colour tag; keep them as weak candidates.
+    if (best === -1 && colours.length) continue;
+    let score = (best === -1 ? 50 : best * 4 + quality) - (r.on_sale ? 1 : 0);
+    if (/\bboys?\b/i.test(r.title)) score += 200; // kids' line stays out of adult outfits
+    scored.push({ row: r, score, matched: best >= 0 ? role.colours[best] : null });
+  }
+  scored.sort((a, b) => a.score - b.score || a.row.price_min - b.row.price_min);
+
+  // Diversify: one best pick per plan colour first ("three shirt colour
+  // options"), then fill remaining slots by score.
+  const chosen = [];
+  const ids = new Set();
+  for (const want of role.colours) {
+    if (chosen.length >= role.count) break;
+    const hit = scored.find((p) => p.matched === want && !ids.has(p.row.id));
+    if (hit) { chosen.push(hit); ids.add(hit.row.id); }
+  }
+  for (const p of scored) {
+    if (chosen.length >= role.count) break;
+    if (!ids.has(p.row.id)) { chosen.push(p); ids.add(p.row.id); }
+  }
+
+  return chosen.filter(Boolean).map(({ row, matched }) => ({
+    id: row.id,
+    role: role.label,
+    note: matched ? 'in ' + matched : '',
+    title: row.title,
+    fit: row.fit,
+    price: row.price_min,
+    compare_at_price: row.on_sale ? row.compare_at_price : null,
+    image: row.image_url,
+    url: `https://${store.domain}/products/${row.handle}`,
+  }));
+}
+
+// ---------- Dev brain (local only: DEV_BRAIN=queue) ----------
+// Chat turns queue in D1; the developer's Claude Code session answers them.
+async function runDevBrain(env, store, session, history, text, imageKey) {
+  const now = new Date().toISOString();
+  const payload = JSON.stringify({
+    store: store.slug,
+    session_id: session.id,
+    history,
+    text: text || '(photo only)',
+    image_key: imageKey,
+  });
+  const job = await env.DB.prepare(
+    'INSERT INTO dev_jobs (session_id, store_slug, payload, created_at) VALUES (?,?,?,?) RETURNING id'
+  ).bind(session.id, store.slug, payload, now).first();
+
+  for (let i = 0; i < 110; i++) {
+    await new Promise((r) => setTimeout(r, 1000));
+    const row = await env.DB.prepare('SELECT status, reply FROM dev_jobs WHERE id = ?')
+      .bind(job.id).first();
+    if (row && row.status === 'done' && row.reply) {
+      const reply = JSON.parse(row.reply);
+      const cards = await resolveCards(env, store, reply.items || []);
+      return { text: reply.text || '', cards, palette: reply.palette || null };
+    }
+  }
+  return { text: 'The stylist stepped away from the counter — try that again in a moment.', cards: [], palette: null };
+}
+
+app.get('/admin/dev/jobs', async (c) => {
+  if (!adminAuthed(c) || c.env.DEV_BRAIN !== 'queue') return c.text('unauthorized', 401);
+  const { results } = await c.env.DB.prepare(
+    "SELECT id, payload, created_at FROM dev_jobs WHERE status = 'pending' ORDER BY id"
+  ).all();
+  return c.json({ jobs: results.map((r) => ({ id: r.id, ...JSON.parse(r.payload), created_at: r.created_at })) });
+});
+
+app.post('/admin/dev/reply', async (c) => {
+  if (!adminAuthed(c) || c.env.DEV_BRAIN !== 'queue') return c.text('unauthorized', 401);
+  const { id, text, items, palette } = await c.req.json();
+  await c.env.DB.prepare("UPDATE dev_jobs SET status = 'done', reply = ? WHERE id = ?")
+    .bind(JSON.stringify({ text, items: items || [], palette: palette || null }), id).run();
+  return c.json({ ok: true });
 });
 
 // ---------- Admin ----------

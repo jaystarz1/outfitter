@@ -1,27 +1,34 @@
 # Outfitter
 
-**An AI outfit stylist for any Shopify store.** Point it at a storefront, it ingests the
-live catalogue, and shoppers (or in-store sales reps) chat with a stylist that builds
-complete outfits — recommending **only real, in-stock, linkable products**.
+**An outfit stylist for any Shopify store.** Point it at a storefront, it ingests the
+live catalogue, and shoppers (or in-store sales reps) build complete outfits in four
+taps — recommending **only real, in-stock, linkable products**.
 
 Live demo, running against [TIP TOP](https://www.tiptop.ca)'s public catalogue:
 **https://outfitter.jay-668.workers.dev/s/tiptop**
 
-Upload a photo of the piece you're building around ("what goes with these pants?"),
-tell it the occasion, and it answers with a colour palette, styling advice, and product
-cards that link straight to the store's own product pages.
+Tap the piece you're building around ("what goes with these pants?"), its colour, and
+the occasion — it answers with a colour palette, a line of styling reasoning, and product
+cards that link straight to the store's own product pages. Pivot the colour and the
+whole outfit rebuilds.
 
 ## Why this is interesting
 
 Every "AI shopping assistant" demo has the same fatal flaw: the model makes up products
-and hallucinates URLs. Outfitter makes that **structurally impossible**:
+and hallucinates URLs. Outfitter's primary flow doesn't use a model at all:
 
 1. The store's catalogue is synced nightly from Shopify's public `products.json` into a
    database (products, variants, extracted colour/fit/category attributes).
-2. The stylist model can only *search* that database via tools, and can only *recommend*
-   by product ID from its own search results.
-3. The server resolves IDs back to database rows and renders the product cards — image,
-   price, sale badge, link. **Model text never contains a URL.**
+2. A curated **palette matrix** (`src/palette.js`) — classic menswear colour theory as
+   data — maps (anchor item, colour, occasion) to per-category colour targets.
+3. The server matches those targets against the catalogue with ranked SQL (exact colour
+   beats colour-family, sale as tiebreaker, one pick per colour so you always get three
+   shirt options) and renders the cards — image, price, sale badge, link.
+
+Deterministic, instant, free to run, and a hallucinated product is impossible rather
+than merely discouraged. An optional chat/vision lane (bring your own Anthropic key)
+exists for photo identification and free-text styling, but the core product needs no
+API key at all.
 
 Adding a store is one registry row + one sync call. Zero code. The demo repo has two
 stores loaded to prove it.
@@ -29,22 +36,25 @@ stores loaded to prove it.
 ## Architecture
 
 ```
-Browser (mobile-first chat UI, /s/<store-slug>)
+Browser (mobile-first guided flow, /s/<store-slug>)
+   item → colour → occasion (+ on-sale toggle) → palette + outfit cards
    │
 Cloudflare Worker (Hono)
+   ├─ Palette matrix: (item, colour, occasion) → per-category colour targets
    ├─ D1: stores, products, variants, sessions, messages
    ├─ R2: customer photo uploads
-   ├─ Claude API (vision + tool use):
+   ├─ Optional BYOK chat lane (Claude vision + tool use):
    │    search_catalogue · recommend_products · show_palette
    └─ Cron: nightly catalogue sync per registered store
 ```
 
-- **Stack**: Cloudflare Workers + D1 + R2, Hono, Claude (Sonnet) with tool use. No build
-  step, no framework, ~1,500 lines total.
+- **Stack**: Cloudflare Workers + D1 + R2, Hono. No build step, no framework, no
+  required model, ~1,600 lines total.
 - **Catalogue extraction**: structured-tag convention (`COLOR--`, `FIT--`) when the store
   has one, generic lexicon fallback when it doesn't.
-- **Sessions persist** in D1 — close the tab mid-fitting, come back, the conversation is
-  still there.
+- **Two audiences, one engine**: a shopper-facing widget and an in-store sales-rep
+  assistant/trainer — the palette matrix doubles as a colour-matching curriculum, and
+  the on-sale toggle turns it into a clearance mover.
 
 ## Run your own
 
@@ -53,7 +63,7 @@ npm install
 npx wrangler d1 create outfitter-db        # put the id in wrangler.jsonc
 npx wrangler r2 bucket create outfitter-uploads
 npx wrangler d1 migrations apply outfitter-db --remote
-npx wrangler secret put ANTHROPIC_API_KEY
+# optional, only for the chat/vision lane:  npx wrangler secret put ANTHROPIC_API_KEY
 npx wrangler secret put ADMIN_TOKEN
 npx wrangler deploy
 
