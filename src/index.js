@@ -267,8 +267,8 @@ async function pickForRole(env, store, role, saleOnly) {
     }
     // Belts/shoes/squares often carry no colour tag; keep them as weak candidates.
     if (best === -1 && colours.length) continue;
-    let score = (best === -1 ? 50 : best * 4 + quality) - (r.on_sale ? 1 : 0);
-    if (/\bboys?\b/i.test(r.title)) score += 200; // kids' line stays out of adult outfits
+    let score = (best === -1 ? 200 : best * 16 + quality * 4) - (r.on_sale ? 1 : 0);
+    if (/\bboys?\b/i.test(r.title)) score += 1000; // kids' line stays out of adult outfits
     // matched = plan colour (drives one-per-colour diversity); tag = store's word (drives the card note)
     scored.push({ row: r, score, matched: best >= 0 ? role.colours[best] : null, tag: matchedTag });
   }
