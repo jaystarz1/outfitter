@@ -1,7 +1,7 @@
 import { Hono } from 'hono';
 import { syncStore, syncAllStores } from './sync.js';
 import { runStylist, resolveCards } from './stylist.js';
-import { buildPlan, COLOUR_FAMILY } from './palette.js';
+import { buildPlan, paletteOptions, COLOUR_FAMILY } from './palette.js';
 import { renderPage } from './ui.js';
 
 const app = new Hono();
@@ -168,6 +168,20 @@ app.post('/api/chat', async (c) => {
 });
 
 // ---------- Outfit builder (deterministic: palette matrix + SQL, no model) ----------
+
+// Step 5: the pickable palette for a chosen item/shade/occasion.
+app.post('/api/palette', async (c) => {
+  let body;
+  try {
+    body = await c.req.json();
+  } catch {
+    return c.json({ error: 'bad request' }, 400);
+  }
+  const opts = paletteOptions(body.item, body.shade, body.occasion);
+  if (!opts) return c.json({ error: 'unknown item, shade, or occasion' }, 400);
+  return c.json(opts);
+});
+
 app.post('/api/outfit', async (c) => {
   const env = c.env;
   const ip = c.req.header('cf-connecting-ip') || 'unknown';
@@ -180,18 +194,49 @@ app.post('/api/outfit', async (c) => {
   } catch {
     return c.json({ error: 'bad request' }, 400);
   }
-  const { store: slug, item, colour, occasion, sale_only } = body;
+  const { store: slug, item, shade, occasion, picks } = body;
   const store = await getStore(env, slug);
   if (!store) return c.json({ error: 'unknown store' }, 404);
-  const plan = buildPlan(item, colour, occasion);
-  if (!plan) return c.json({ error: 'unknown item, colour, or occasion' }, 400);
+  const plan = buildPlan(item, shade, occasion, Array.isArray(picks) ? picks : []);
+  if (!plan) return c.json({ error: 'unknown item, shade, or occasion' }, 400);
 
-  const groups = [];
+  // Rows merge by display group (Belts & Shoes; Ties, Socks & Pocket Squares).
+  const groups = new Map();
   for (const role of plan.roles) {
-    const picks = await pickForRole(env, store, role, !!sale_only);
-    if (picks.length) groups.push({ role: role.label, cards: picks });
+    const cards = await pickForRole(env, store, role, false);
+    if (!cards.length) continue;
+    if (!groups.has(role.group)) groups.set(role.group, []);
+    groups.get(role.group).push(...cards);
   }
-  return c.json({ palette: plan.swatches, why: plan.why, groups });
+  return c.json({
+    palette: plan.swatches,
+    why: plan.why,
+    groups: [...groups.entries()].map(([role, cards]) => ({ role, cards })),
+  });
+});
+
+// Fitting list: per-size variants (sku, availability) for selected products.
+app.get('/api/variants', async (c) => {
+  const slug = c.req.query('store');
+  const ids = (c.req.query('ids') || '').split(',').map(Number).filter(Boolean).slice(0, 30);
+  const store = await getStore(c.env, slug);
+  if (!store || !ids.length) return c.json({ products: [] });
+  const placeholders = ids.map(() => '?').join(',');
+  const { results } = await c.env.DB.prepare(
+    `SELECT product_id, title, sku, price, available FROM variants
+     WHERE store_slug = ? AND product_id IN (${placeholders}) ORDER BY product_id, id`
+  ).bind(store.slug, ...ids).all();
+  const byProduct = {};
+  for (const v of results) {
+    (byProduct[v.product_id] = byProduct[v.product_id] || []).push({
+      title: v.title,
+      sku: v.sku,
+      style: v.sku ? v.sku.split('~')[0] : null,
+      price: v.price,
+      available: !!v.available,
+    });
+  }
+  return c.json({ products: byProduct });
 });
 
 // Rank a role's category: colour fit first (earlier in the plan's list = better,
@@ -207,6 +252,7 @@ async function pickForRole(env, store, role, saleOnly) {
     const colours = JSON.parse(r.colours || '[]');
     let best = -1;      // index into role.colours of the best-matched want
     let quality = 9;    // 0 exact, 1 colour-family, 2 substring
+    let matchedTag = null; // the store's own colour word — what the card admits to
     for (let i = 0; i < role.colours.length; i++) {
       const want = role.colours[i];
       const family = COLOUR_FAMILY[want] || [];
@@ -216,14 +262,15 @@ async function pickForRole(env, store, role, saleOnly) {
         else if (family.includes(have)) q = 1;
         else if (have.includes(want) || want.includes(have)) q = 2;
         else continue;
-        if (best === -1 || i < best || (i === best && q < quality)) { best = i; quality = q; }
+        if (best === -1 || i < best || (i === best && q < quality)) { best = i; quality = q; matchedTag = have; }
       }
     }
     // Belts/shoes/squares often carry no colour tag; keep them as weak candidates.
     if (best === -1 && colours.length) continue;
     let score = (best === -1 ? 50 : best * 4 + quality) - (r.on_sale ? 1 : 0);
     if (/\bboys?\b/i.test(r.title)) score += 200; // kids' line stays out of adult outfits
-    scored.push({ row: r, score, matched: best >= 0 ? role.colours[best] : null });
+    // matched = plan colour (drives one-per-colour diversity); tag = store's word (drives the card note)
+    scored.push({ row: r, score, matched: best >= 0 ? role.colours[best] : null, tag: matchedTag });
   }
   scored.sort((a, b) => a.score - b.score || a.row.price_min - b.row.price_min);
 
@@ -241,10 +288,10 @@ async function pickForRole(env, store, role, saleOnly) {
     if (!ids.has(p.row.id)) { chosen.push(p); ids.add(p.row.id); }
   }
 
-  return chosen.filter(Boolean).map(({ row, matched }) => ({
+  return chosen.filter(Boolean).map(({ row, tag }) => ({
     id: row.id,
     role: role.label,
-    note: matched ? 'in ' + matched : '',
+    note: tag ? 'in ' + tag : '',
     title: row.title,
     fit: row.fit,
     price: row.price_min,

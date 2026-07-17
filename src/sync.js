@@ -108,6 +108,7 @@ export function normalizeProduct(store, p, now) {
       id: v.id,
       product_id: p.id,
       title: v.title || null,
+      sku: v.sku || null,
       price: parseFloat(v.price) || null,
       available: v.available === false ? 0 : 1,
     })),
@@ -172,8 +173,8 @@ export async function syncStore(env, store) {
         for (const v of p.variants) {
           stmts.push(
             env.DB.prepare(
-              'INSERT OR REPLACE INTO variants (store_slug, id, product_id, title, price, available) VALUES (?,?,?,?,?,?)'
-            ).bind(store.slug, v.id, v.product_id, v.title, v.price, v.available)
+              'INSERT OR REPLACE INTO variants (store_slug, id, product_id, title, sku, price, available) VALUES (?,?,?,?,?,?,?)'
+            ).bind(store.slug, v.id, v.product_id, v.title, v.sku, v.price, v.available)
           );
         }
         stmts.push(
